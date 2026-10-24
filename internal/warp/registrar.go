@@ -15,14 +15,12 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
 const (
 	defaultAPIBase = "https://api.cloudflareclient.com/v0i1909051800"
 	defaultPeer    = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
-	registerGap    = 12 * time.Second
 )
 
 var fallbackEndpoints = []string{
@@ -45,11 +43,8 @@ type registration struct {
 }
 
 type registrar struct {
-	base    string
-	client  *http.Client
-	minGap  time.Duration
-	mu      sync.Mutex
-	lastReg time.Time
+	base   string
+	client *http.Client
 }
 
 func newRegistrar() *registrar {
@@ -65,25 +60,15 @@ func newRegistrar() *registrar {
 				TLSHandshakeTimeout: 10 * time.Second,
 			},
 		},
-		minGap: registerGap,
 	}
 }
 
+// register creates and enables one WARP device. Registrations are no longer
+// paced by a fixed gap: the pool registers in the background while traffic is
+// served, so a fixed delay only slowed down prefills and 429 replacements.
+// Callers already serialize registrations through the pool's create mutex; a
+// rejected attempt backs off in the refill loop.
 func (r *registrar) register(ctx context.Context) (registration, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if wait := r.minGap - time.Since(r.lastReg); wait > 0 {
-		timer := time.NewTimer(wait)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return registration{}, ctx.Err()
-		case <-timer.C:
-		}
-	}
-	r.lastReg = time.Now()
-
 	privateKey, publicKey, err := wireGuardKeypair()
 	if err != nil {
 		return registration{}, err
