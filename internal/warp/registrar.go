@@ -30,6 +30,11 @@ const (
 	maxRateLimitPause = 5 * time.Minute
 )
 
+// RegistrationWindow is the longest pause Cloudflare's registration rate limit
+// can impose: a caller that needs a first exit before it can serve waits out one
+// full window rather than failing on a pause that is about to end.
+const RegistrationWindow = maxRateLimitPause
+
 // registrationPausedError reports that Cloudflare asked for a pause before
 // the next device registration. The pool schedules its retry from it instead
 // of sleeping inside the registration path.

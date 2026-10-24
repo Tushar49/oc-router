@@ -237,10 +237,30 @@ func newPool(ctx context.Context, log logger, size int, create func(context.Cont
 		cooling:  make(map[string]time.Time),
 		changed:  make(chan struct{}),
 	}
+	// The first registration gates readiness. Cloudflare can answer it with a
+	// rate limit even when this process has just started (the limit follows the
+	// source address), so wait out that window inside the caller's deadline
+	// instead of failing startup over a pause that is about to end. Any other
+	// failure still fails closed.
 	first, err := p.createExit(ctx)
-	if err != nil {
-		cancel()
-		return nil, err
+	for err != nil {
+		pause := registrationPause(err)
+		if pause <= 0 {
+			cancel()
+			return nil, err
+		}
+		if log != nil {
+			log.Infof("OpenCode WARP first registration paused for %s", pause.Round(time.Second))
+		}
+		timer := time.NewTimer(pause)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			cancel()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+		first, err = p.createExit(ctx)
 	}
 	p.active = []*exit{first}
 	if log != nil {
