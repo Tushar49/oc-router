@@ -23,6 +23,20 @@ const egressCooldown = 30 * time.Minute
 // registrations run back to back in the background.
 const refillRetryDelay = 5 * time.Second
 
+// A pool can only hold as many exits as Cloudflare hands out distinct egress
+// blocks. When preload is larger than that supply, every extra registration is
+// a duplicate; after a few in a row the pool stops trying for a while instead
+// of hammering the registration API forever.
+const (
+	refillFailureThreshold = 3
+	refillBackoffBase      = time.Minute
+	refillBackoffMax       = 5 * time.Minute
+)
+
+// errDuplicateEgress reports a registration whose public egress block is
+// already active or cooling down.
+var errDuplicateEgress = errors.New("WARP egress is already active or cooling down")
+
 // scaleDownDelay keeps exits created for a burst hot for a while after the
 // burst, so a following burst reuses them instead of paying for new
 // registrations.
@@ -88,8 +102,12 @@ type Pool struct {
 	closed    bool
 	refilling bool
 	scaling   bool
-	wait      sync.WaitGroup
-	createMu  sync.Mutex
+	// refillFailures counts consecutive failed preload registrations;
+	// refillPaused keeps every refill trigger quiet until it expires.
+	refillFailures int
+	refillPaused   time.Time
+	wait           sync.WaitGroup
+	createMu       sync.Mutex
 }
 
 type Lease struct {
@@ -401,7 +419,11 @@ func (p *Pool) replace(old *exit, reason string) {
 			old.retire()
 		}
 		if p.logger != nil {
-			p.logger.Errorf("Cannot replace OpenCode WARP egress %s: %v", old.id, err)
+			if pause := registrationPause(err); pause > 0 {
+				p.logger.Infof("OpenCode WARP replacement paused for %s", pause.Round(time.Second))
+			} else {
+				p.logger.Errorf("Cannot replace OpenCode WARP egress %s: %v", old.id, err)
+			}
 		}
 		p.startRefill()
 		return
@@ -435,7 +457,7 @@ func (p *Pool) replace(old *exit, reason string) {
 
 func (p *Pool) refill() {
 	p.mu.Lock()
-	if p.closed || p.refilling || !p.needsRefillLocked() {
+	if p.closed || p.refilling || time.Now().Before(p.refillPaused) || !p.needsRefillLocked() {
 		p.mu.Unlock()
 		return
 	}
@@ -451,6 +473,10 @@ func (p *Pool) refill() {
 		replacement = nil
 		placed = true
 	}
+	if err == nil {
+		p.refillFailures = 0
+		p.refillPaused = time.Time{}
+	}
 	if placed || p.closed {
 		p.notifyLocked()
 	}
@@ -461,21 +487,69 @@ func (p *Pool) refill() {
 		replacement.close()
 	}
 	if err != nil && p.ctx.Err() == nil {
-		if p.logger != nil {
+		delay := refillRetryDelay
+		if pause := registrationPause(err); pause > 0 {
+			// Cloudflare's rate limit is the pacing: wait out the window it
+			// asked for instead of retrying into the same answer.
+			delay = pause
+			if delay < refillRetryDelay {
+				delay = refillRetryDelay
+			}
+			if delay > maxRateLimitPause {
+				delay = maxRateLimitPause
+			}
+			if p.logger != nil {
+				p.logger.Infof("OpenCode WARP registration paused for %s", delay.Round(time.Second))
+			}
+		} else if errors.Is(err, errDuplicateEgress) {
+			p.mu.Lock()
+			p.refillFailures++
+			failures := p.refillFailures
+			p.mu.Unlock()
+			if failures >= refillFailureThreshold {
+				// The egress supply is smaller than the target. Back off
+				// exponentially so a saturated colo is not registered into
+				// forever.
+				shift := failures - refillFailureThreshold
+				if shift > 3 {
+					shift = 3
+				}
+				delay = refillBackoffBase << shift
+				if delay > refillBackoffMax {
+					delay = refillBackoffMax
+				}
+				if p.logger != nil {
+					p.logger.Infof("OpenCode WARP preload paused for %s after %d duplicate egresses", delay.Round(time.Second), failures)
+				}
+			}
+		} else if p.logger != nil {
 			p.logger.Warnf("Cannot pre-register OpenCode WARP egress: %v", err)
 		}
-		// A rejected registration (for example an API rate limit) backs off a
-		// little instead of leaving the pool under its target for a long
-		// window.
-		p.after(refillRetryDelay, p.startRefill)
+		p.mu.Lock()
+		if paused := time.Now().Add(delay); paused.After(p.refillPaused) {
+			p.refillPaused = paused
+		}
+		p.mu.Unlock()
+		p.after(delay, p.retryRefill)
 		return
 	}
 	p.startRefill()
 }
 
+// retryRefill is the timer half of a failed refill: it clears the pause that
+// kept ordinary triggers quiet and asks for another attempt. Going through
+// startRefill (rather than calling refill directly) keeps the single-flight
+// guard.
+func (p *Pool) retryRefill() {
+	p.mu.Lock()
+	p.refillPaused = time.Time{}
+	p.mu.Unlock()
+	p.startRefill()
+}
+
 func (p *Pool) startRefill() {
 	p.mu.Lock()
-	if p.closed || p.refilling || !p.needsRefillLocked() {
+	if p.closed || p.refilling || time.Now().Before(p.refillPaused) || !p.needsRefillLocked() {
 		p.mu.Unlock()
 		return
 	}
@@ -600,7 +674,7 @@ func (p *Pool) createExit(ctx context.Context) (*exit, error) {
 			}
 			return candidate, nil
 		}
-		lastErr = fmt.Errorf("WARP egress %s is already active or cooling down", key)
+		lastErr = fmt.Errorf("%w: %s", errDuplicateEgress, key)
 		if p.logger != nil {
 			p.logger.Warnf("Discarding duplicate WARP exit %s: %v", candidate.id, lastErr)
 		}
