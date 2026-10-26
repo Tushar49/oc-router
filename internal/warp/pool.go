@@ -645,9 +645,18 @@ func (p *Pool) scaleDown() {
 	}
 }
 
-// after runs fn once delay has elapsed, unless the pool closes first.
+// after runs fn once delay has elapsed, unless the pool closes first. The wait
+// group is incremented under the pool lock so it cannot race with Close's
+// Wait: a timer scheduled after Close is not started at all, and one scheduled
+// before it is counted before Close can begin waiting.
 func (p *Pool) after(delay time.Duration, fn func()) {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return
+	}
 	p.wait.Add(1)
+	p.mu.Unlock()
 	go func() {
 		defer p.wait.Done()
 		timer := time.NewTimer(delay)
