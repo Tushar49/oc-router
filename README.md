@@ -214,7 +214,7 @@ Eligibility is a routing decision; the upstream can still reject or rate-limit t
 
 The routing sequence is:
 
-1. For an eligible model, try up to `performance.max_anonymous_exits` available anonymous proxies once each. Every proxy tries the v2 `/inference` lane first, then the v1 `/zen` lane.
+1. For an eligible model, try up to `performance.max_anonymous_exits` available anonymous proxies once each. Every proxy uses the v2 `/inference` lane; the v1 `/zen` fallback is retired for free models and its call site is commented out.
 2. Try authenticated tiers in `prefer` order, using only tiers with a configured key and a route for that model.
 3. Apply `retry.max_attempts` separately to each authenticated tier.
 
@@ -293,7 +293,7 @@ See [config.example.json](config.example.json) for a complete starting configura
 | `prefer`                    | `go`; accepts `go` or `zen`.                                                |
 | `upstream.zen`              | `https://opencode.ai/zen`.                                                  |
 | `upstream.go`               | `https://opencode.ai/zen/go`.                                               |
-| `upstream.anonymous`        | `https://opencode.ai/inference`; tried first by the anonymous lane, which falls back to `/zen`. |
+| `upstream.anonymous`        | `https://opencode.ai/inference`; the only anonymous lane (the retired `/zen` fallback is commented out in `anonymousUpstreams`). |
 | `proxies`                   | Falls back to `["direct"]` when both proxy sources are empty.               |
 | `proxyfile`                 | Optional; relative paths resolve beside the configuration file.             |
 | `models.refresh_seconds`    | `300`; minimum 1.                                                           |
