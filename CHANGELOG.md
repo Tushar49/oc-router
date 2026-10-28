@@ -25,7 +25,15 @@ Nothing yet.
   the parity fixture directory skeleton.
 - Headroom `/v1/compress` smoke evidence against the existing local `0.38.0`
   service; the pinned `0.42.0` gate remains open.
+- `staticcheck.conf` and `.gitleaks.toml` for the upstream baseline's known
+  style findings and placeholder curl examples.
 - Upstream baseline pinned at `v1.4.5`.
+
+### Changed
+
+- Updated `golang.org/x/net` to `v0.60.0`, `x/crypto` to `v0.57.0`, and
+  `x/sys` to `v0.48.0`; the module directive is `go 1.26.0`. CI and release
+  builds use Go `1.27.x`, and the Docker builder uses `golang:1.27-alpine`.
 
 ### Notes
 

@@ -18,7 +18,7 @@ Headroom.
 - Upstream: `v1.4.5` / `fe49a021694eb0a2468527d398d049b3bb6b17cf`
 - Upstream license: GPL-3.0-or-later
 - Project license: GPL-3.0-or-later (see `LICENSE` and `NOTICE`)
-- Go: 1.24 or newer
+- Go: 1.26 or newer
 
 ## Build
 

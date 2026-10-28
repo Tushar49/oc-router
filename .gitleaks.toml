@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Upstream documentation and WebUI use placeholder curl Authorization headers, not credentials."
+condition = "AND"
+paths = [
+  '''README(?:\.(?:it|vi|zh-CN))?\.md$''',
+  '''webui/(?:app\.js|index\.html|js/pages/access\.js)$''',
+]
+regexes = ['''YOUR_(?:LOCAL_)?API_KEY''']

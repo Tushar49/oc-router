@@ -70,6 +70,25 @@ whether to keep ours, re-apply a small patch, or retire the replacement.
   Conflict risk: low.
   Upstream alternative: none.
 
+### Dockerfile
+
+- Updated the builder image to `golang:1.27-alpine` to match the Go 1.26 module
+  directive and the CI toolchain.
+  Reason: the old `1.24` builder cannot build the updated module.
+  Conflict risk: low; keep the image at or above `go.mod`.
+  Upstream alternative: upstream toolchain bump.
+
+## Dependency patches
+
+### go.mod / go.sum
+
+- Updated `golang.org/x/net` to `v0.60.0`, `x/crypto` to `v0.57.0`, and
+  `x/sys` to `v0.48.0`; the module directive is now `go 1.26.0`.
+  Reason: `x/net v0.42.0` has GO-2026-6617 and the Go 1.24 standard library has
+  advisories; the owner approved this dependency update.
+  Conflict risk: medium; re-apply security updates on sync.
+  Upstream alternative: take the upstream dependency bump when available.
+
 ## Upstream code patches
 
 None. No `// oc-router:` markers exist yet.

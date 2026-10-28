@@ -38,10 +38,13 @@ govulncheck ./...
 ```
 
 `gofmt -l .` must print nothing. `staticcheck` and `govulncheck` are optional
-locally but are expected before a release. CI runs `go vet`, `go test`,
-`gofmt`, `staticcheck`, `govulncheck`, the WebUI syntax check, the container
-entrypoint syntax check, gitleaks, the path/secret scan, and the release build;
-see `.github/workflows/ci.yml`. Identity checks and the noext gate live in
+locally but are expected before a release. `staticcheck.conf` excludes the
+upstream baseline's `ST1005`/`ST1008`/`ST1016`/`U1000` style findings until
+those files are patched or replaced; remove the exclusions when that happens.
+CI runs `go vet`, `go test`, `gofmt`, `staticcheck`, `govulncheck`, the WebUI
+syntax check, the container entrypoint syntax check, gitleaks (with
+`.gitleaks.toml`), the path/secret scan, and the release build; see
+`.github/workflows/ci.yml`. Identity checks and the noext gate live in
 `.github/workflows/parity.yml`.
 
 ## Tests
