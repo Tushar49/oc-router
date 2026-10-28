@@ -1,0 +1,140 @@
+name: Parity
+
+on:
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - "internal/httpx/**"
+      - "internal/identity/**"
+      - "internal/gateway/opencode_prompt.go"
+      - "internal/gateway/opencode_prompt*.txt"
+      - "internal/gateway/opencode_tools*.json"
+      - "internal/gateway/toolshape.go"
+      - "internal/warp/**"
+      - "internal/**/embed/**"
+      - "internal/**/assets/**"
+      - "webui/**"
+      - "scripts/identity-hash.mjs"
+      - "docs/identity-manifest.json"
+      - ".github/workflows/parity.yml"
+  push:
+    branches: [dev]
+    paths:
+      - "internal/httpx/**"
+      - "internal/identity/**"
+      - "internal/gateway/opencode_prompt.go"
+      - "internal/gateway/opencode_prompt*.txt"
+      - "internal/gateway/opencode_tools*.json"
+      - "internal/gateway/toolshape.go"
+      - "internal/warp/**"
+      - "internal/**/embed/**"
+      - "internal/**/assets/**"
+      - "webui/**"
+      - "scripts/identity-hash.mjs"
+      - "docs/identity-manifest.json"
+      - ".github/workflows/parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: parity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.24.x"
+
+jobs:
+  fixtures:
+    name: Fixtures and noext parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build binary
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          mkdir -p bin
+          go build -trimpath -ldflags="-s -w -X main.version=parity" \
+            -o bin/oc-router ./cmd/opencode2api
+
+      - name: Run fixture and parity tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d testdata/parity ] || [ -d internal/parity/testdata ]; then
+            go test ./... -run 'Parity|Fixture' -count=1
+          else
+            echo "No parity fixture directory yet; running the full test suite as the skeleton gate."
+            go test ./... -count=1
+          fi
+
+      - name: Run noext parity tests
+        run: go test -tags noext ./... -count=1
+
+      - name: Upload parity artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-output
+          path: |
+            parity-out/
+            testdata/parity/out/
+            internal/parity/testdata/out/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  identity:
+    name: Identity hash manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify identity hashes
+        shell: bash
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+          if [ ! -f scripts/identity-hash.mjs ]; then
+            echo "::error::scripts/identity-hash.mjs is missing; cannot verify the identity manifest"
+            exit 1
+          fi
+
+          set +e
+          node scripts/identity-hash.mjs --check
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "identity hashes match the manifest"
+            exit 0
+          fi
+
+          if printf ',%s,' "$LABELS" | grep -q ',identity-update,'; then
+            echo "identity manifest changed and the identity-update label is present"
+            exit 0
+          fi
+
+          echo "::error::Identity bytes changed without the identity-update label. Update the manifest and goldens with review, or add the label."
+          exit "$status"

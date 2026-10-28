@@ -20,3 +20,13 @@ coverage.out
 # Local credentials, deployment backups, and verification artifacts
 .local/
 *.availability.json
+
+# OC Router local/dev-only material
+_archive/
+.research/
+.githooks/
+.local/
+*.local
+*.tmp
+bin/
+dist/

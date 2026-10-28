@@ -1,0 +1,283 @@
+name: Promote dev to main
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version label for the merge commit, for example 0.2.0"
+        required: true
+        type: string
+      dry_run:
+        description: "Run the merge, strip, and verification without pushing"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: promote-main
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote dev to main
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROMOTE_TOKEN: ${{ secrets.PROMOTE_TOKEN }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Check promotion token
+        id: token
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${PROMOTE_TOKEN:-}" ]; then
+            {
+              echo "## Promotion token not configured"
+              echo
+              echo "This workflow is the optional token path. The default promotion path is the local script:"
+              echo
+              echo '```sh'
+              echo "node scripts/promote.mjs <version>"
+              echo '```'
+              echo
+              echo "To enable this workflow, create an owner fine-grained personal access token with **Contents: Read and write** for this repository only, then add it as the repository secret \`PROMOTE_TOKEN\`. Do not use a broad classic token."
+              echo
+              echo "A repository ruleset may still block \`github-actions[bot]\`; in that case keep using the local script."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "PROMOTE_TOKEN is not set; printed setup instructions and stopped successfully."
+            exit 0
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Validate version
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$VERSION" in
+            ""|*[!A-Za-z0-9._+-]*)
+              echo "version must be a non-empty label containing only letters, digits, dot, underscore, plus, or hyphen" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Check out main
+        if: steps.token.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.PROMOTE_TOKEN }}
+          persist-credentials: true
+
+      - name: Configure git
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Fetch branches
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main dev --tags --prune
+
+      - name: Require a clean tree
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "working tree is not clean" >&2
+            git status --short >&2
+            exit 1
+          fi
+
+      - name: Merge dev
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          allowed_conflict_re='^(_archive/|\.agents/|\.research/|\.githooks/|\.main\.gitignore$|\.github/AGENTS\.md$|\.github/copilot-instructions\.md$|\.gitignore$)'
+
+          set +e
+          git merge --no-ff --no-commit origin/dev
+          merge_status=$?
+          set -e
+
+          if [ "$merge_status" -ne 0 ]; then
+            unmerged="$(git diff --name-only --diff-filter=U || true)"
+            if [ -z "$unmerged" ]; then
+              echo "git merge failed without conflict markers" >&2
+              git merge --abort >/dev/null 2>&1 || true
+              exit 1
+            fi
+            outside="$(printf '%s\n' "$unmerged" | grep -vE "$allowed_conflict_re" | grep -v '^$' || true)"
+            if [ -n "$outside" ]; then
+              echo "conflicts outside the strip list:" >&2
+              printf '%s\n' "$outside" >&2
+              git merge --abort
+              exit 1
+            fi
+
+            if printf '%s\n' "$unmerged" | grep -qx '.gitignore'; then
+              if ! git cat-file -e origin/dev:.main.gitignore 2>/dev/null; then
+                echo "origin/dev has no .main.gitignore; cannot resolve the .gitignore conflict" >&2
+                git merge --abort
+                exit 1
+              fi
+            fi
+
+            while IFS= read -r path; do
+              [ -n "$path" ] || continue
+              [ "$path" = ".gitignore" ] && continue
+              git rm -rf -q --ignore-unmatch -- "$path" || true
+            done <<< "$unmerged"
+          fi
+
+      - name: Sync .gitignore from .main.gitignore
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git cat-file -e origin/dev:.main.gitignore 2>/dev/null; then
+            git show origin/dev:.main.gitignore > "$RUNNER_TEMP/main.gitignore"
+            if ! cmp -s "$RUNNER_TEMP/main.gitignore" .gitignore; then
+              cp "$RUNNER_TEMP/main.gitignore" .gitignore
+              git add .gitignore
+              echo "synced .gitignore from .main.gitignore"
+            else
+              echo ".gitignore already matches .main.gitignore"
+            fi
+            if git ls-files -u -- .gitignore | grep -q .; then
+              git add .gitignore
+              echo "resolved the .gitignore merge conflict"
+            fi
+          else
+            echo "::warning::origin/dev has no .main.gitignore; leaving .gitignore as merged"
+          fi
+
+      - name: Strip dev-only paths
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -rf -q --ignore-unmatch -- \
+            _archive \
+            .agents \
+            .research \
+            .githooks \
+            .main.gitignore \
+            .github/AGENTS.md \
+            .github/copilot-instructions.md
+
+      - name: Hard verify promoted tree
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dev_only=(_archive .agents .research .githooks .main.gitignore .github/AGENTS.md .github/copilot-instructions.md)
+
+          if git ls-files -- "${dev_only[@]}" | grep -q .; then
+            echo "a dev-only path is still tracked:" >&2
+            git ls-files -- "${dev_only[@]}" >&2
+            exit 1
+          fi
+
+          if [ -n "$(git ls-files -u)" ]; then
+            echo "unmerged paths remain" >&2
+            git ls-files -u >&2
+            exit 1
+          fi
+
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "unstaged changes remain" >&2
+            git diff --name-only >&2
+            exit 1
+          fi
+
+          if [ -n "$(git ls-files --others --exclude-standard)" ]; then
+            echo "untracked files remain" >&2
+            git ls-files --others --exclude-standard >&2
+            exit 1
+          fi
+
+          echo "hard verification passed"
+
+      - name: Show staged summary
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --cached --stat
+          if git diff --cached --quiet; then
+            echo "no changes to promote"
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "empty=false" >> "$GITHUB_OUTPUT"
+          fi
+        id: staged
+
+      - name: Commit merge
+        if: steps.token.outputs.configured == 'true' && steps.staged.outputs.empty == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git commit -m "Merge dev -> main: ${VERSION}"
+
+      - name: Pre-push guard
+        if: steps.token.outputs.configured == 'true' && steps.staged.outputs.empty == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dev_only=(_archive .agents .research .githooks .main.gitignore .github/AGENTS.md .github/copilot-instructions.md)
+          if git ls-tree -r --name-only HEAD -- "${dev_only[@]}" | grep -q .; then
+            echo "pre-push guard failed: a dev-only path is in the commit" >&2
+            git ls-tree -r --name-only HEAD -- "${dev_only[@]}" >&2
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "pre-push guard failed: working tree is not clean" >&2
+            git status --short >&2
+            exit 1
+          fi
+
+      - name: Push main
+        if: steps.token.outputs.configured == 'true' && steps.staged.outputs.empty == 'false' && inputs.dry_run == false
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:main
+          echo "Pushed main. No tag was created; tag only after Guard main and CI are green."
+
+      - name: Dry run summary
+        if: steps.token.outputs.configured == 'true' && steps.staged.outputs.empty == 'false' && inputs.dry_run == true
+        shell: bash
+        run: |
+          {
+            echo "## Promote dry run"
+            echo
+            echo "Merge, strip, and hard verification passed for version \`${VERSION}\`. Nothing was pushed and no tag was created."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Already up to date
+        if: steps.token.outputs.configured == 'true' && steps.staged.outputs.empty == 'true'
+        shell: bash
+        run: |
+          echo "dev is already merged into main; nothing to promote."
+          {
+            echo "## Promote"
+            echo
+            echo "\`dev\` is already merged into \`main\`; nothing to promote."
+          } >> "$GITHUB_STEP_SUMMARY"

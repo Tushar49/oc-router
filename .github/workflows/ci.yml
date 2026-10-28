@@ -1,0 +1,346 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.24.x"
+
+jobs:
+  lint:
+    name: Vet, format, staticcheck, actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            echo "gofmt reported unformatted files" >&2
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Staticcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install honnef.co/go/tools/cmd/staticcheck@v0.6.1
+          "$(go env GOPATH)/bin/staticcheck" ./...
+
+      - name: Actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.11
+          "$(go env GOPATH)/bin/actionlint"
+
+  test:
+    name: Test ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Test
+        run: go test ./... -count=1
+
+  race:
+    name: Race (linux/amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Race test
+        run: go test -race ./... -count=1
+
+  noext:
+    name: No extensions parity build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Test with extensions disabled
+        run: go test -tags noext ./... -count=1
+
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run govulncheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
+  webui:
+    name: WebUI syntax and OpenAPI lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check WebUI syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          while IFS= read -r -d '' file; do
+            found=1
+            node --input-type=module --check < "$file" || {
+              echo "syntax error: $file" >&2
+              exit 1
+            }
+          done < <(find webui -type f -name '*.js' -print0)
+          if [ "$found" -eq 0 ]; then
+            echo "no WebUI JavaScript files found" >&2
+            exit 1
+          fi
+
+      - name: Check container entrypoint syntax
+        run: sh -n docker-entrypoint.sh
+
+      - name: Lint OpenAPI specification
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f docs/openapi.yaml ]; then
+            echo "docs/openapi.yaml is not present; skipping OpenAPI lint"
+            exit 0
+          fi
+          # The Phase 0 skeleton is OpenAPI 3.1 but still uses the legacy
+          # `nullable` keyword; skip the struct rule until the spec is migrated,
+          # then remove this flag.
+          npx --yes @redocly/cli@2 lint docs/openapi.yaml --format=stylish --skip-rule struct
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Scan for secrets
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
+          gitleaks_bin="$(go env GOPATH)/bin/gitleaks"
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$BASE_SHA" ]; then
+            "$gitleaks_bin" git --redact --no-banner --log-opts "${BASE_SHA}..${HEAD_SHA}" .
+          else
+            "$gitleaks_bin" git --redact --no-banner .
+          fi
+
+  hygiene:
+    name: Path and secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Scan tracked files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Absolute user paths (Windows drive letters, macOS home, Linux home).
+          # Upstream identity/tool assets are excluded: their example paths are
+          # part of the preserved identity bytes and are not ours to rewrite.
+          if hits="$(git grep -nEI '((^|[^A-Za-z0-9+.-])[A-Za-z]:[\\/]|(^|[^A-Za-z0-9._-])/(Users|home)/[A-Za-z0-9._-]+/)' -- . \
+            ':(exclude)AGENTS.md' \
+            ':(exclude).gitignore' \
+            ':(exclude).main.gitignore' \
+            ':(exclude)scripts/promote.mjs' \
+            ':(exclude).github/workflows/ci.yml' \
+            ':(exclude).github/workflows/promote.yml' \
+            ':(exclude).github/workflows/guard-main.yml' \
+            ':(exclude)_archive/**' \
+            ':(exclude).agents/**' \
+            ':(exclude).research/**' \
+            ':(exclude).githooks/**' \
+            ':(exclude)internal/httpx/**' \
+            ':(exclude)internal/identity/**' \
+            ':(exclude)internal/gateway/opencode_prompt.go' \
+            ':(exclude)internal/gateway/opencode_prompt_v*.txt' \
+            ':(exclude)internal/gateway/opencode_tools*.json' \
+            ':(exclude)internal/gateway/toolshape.go' \
+            ':(exclude)internal/warp/**')"; then
+            printf '%s\n' "$hits"
+            echo "absolute local path detected in tracked files" >&2
+            exit 1
+          fi
+
+          # Dev-only paths must not be referenced by shipping files. The files
+          # below name them because they enforce or configure the strip.
+          if hits="$(git grep -nE '(_archive/|\.agents/|\.research/|\.githooks/|\.main\.gitignore)' -- . \
+            ':(exclude)AGENTS.md' \
+            ':(exclude)PATCHES.md' \
+            ':(exclude)_archive/**' \
+            ':(exclude).agents/**' \
+            ':(exclude).research/**' \
+            ':(exclude).githooks/**' \
+            ':(exclude).gitignore' \
+            ':(exclude).main.gitignore' \
+            ':(exclude)scripts/promote.mjs' \
+            ':(exclude).github/workflows/ci.yml' \
+            ':(exclude).github/workflows/promote.yml' \
+            ':(exclude).github/workflows/guard-main.yml')"; then
+            printf '%s\n' "$hits"
+            echo "dev-only path referenced by a shipping file" >&2
+            exit 1
+          fi
+
+          # Credential-looking literals are not allowed in docs or examples.
+          if hits="$(git grep -nE '(sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{36}|xox[baprs]-[A-Za-z0-9-]{10,})' -- README.md docs config.example.json)"; then
+            printf '%s\n' "$hits"
+            echo "credential-looking literal detected in docs or config examples" >&2
+            exit 1
+          fi
+
+          echo "path and secret scan passed"
+
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ""
+          - goos: linux
+            goarch: arm64
+            ext: ""
+          - goos: windows
+            goarch: amd64
+            ext: ".exe"
+          - goos: windows
+            goarch: arm64
+            ext: ".exe"
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w -X main.version=ci" \
+            -o "dist/oc-router_${GOOS}_${GOARCH}${EXT}" ./cmd/opencode2api
+
+  docker:
+    name: Docker build (no push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build --build-arg VERSION=ci -t oc-router:ci .

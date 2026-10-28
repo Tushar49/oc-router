@@ -1,0 +1,56 @@
+name: Guard main
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guard-main-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Reject tracked dev-only paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Check tracked paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dev_only=(
+            _archive
+            .agents
+            .research
+            .githooks
+            .main.gitignore
+            .github/AGENTS.md
+            .github/copilot-instructions.md
+          )
+
+          failed=0
+          for path in "${dev_only[@]}"; do
+            tracked="$(git ls-files -- "$path")"
+            if [ -n "$tracked" ]; then
+              echo "::error::tracked dev-only path: $path"
+              printf '%s\n' "$tracked" | head -n 50
+              failed=1
+            fi
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            echo "main must not track dev-only paths. Remove them from the index; an untracked local directory is fine." >&2
+            exit 1
+          fi
+
+          echo "guard main passed: no tracked dev-only paths"

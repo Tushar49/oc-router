@@ -1,0 +1,32 @@
+.key
+config.json
+config.json.bak
+.config-*.tmp
+*.models.dev.json
+opencode/
+/opencode2api
+/opencode2api.exe
+*.log
+.tmp/
+.gocache/
+*.models.catalog.json
+coverage.out
+*.test
+*.test.exe
+
+*.rotation.json
+.rotation-*.tmp
+
+# Local credentials, deployment backups, and verification artifacts
+.local/
+*.availability.json
+bin/
+dist/
+
+# Dev-only local material. These paths are stripped from main; ignoring them
+# keeps the promotion working tree clean without ever tracking them.
+_archive/
+.research/
+.githooks/
+.agents/
+.main.gitignore

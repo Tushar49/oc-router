@@ -1,0 +1,65 @@
+name: Reference drift
+
+on:
+  schedule:
+    - cron: "23 5 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: reference-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: Check pinned reference bases
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Generate reference drift report
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node scripts/reference-drift.mjs --output "$RUNNER_TEMP/reference-drift.md"
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-drift
+          path: ${{ runner.temp }}/reference-drift.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Open or update drift issue
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          title="Reference drift: $(date -u +%Y-%m-%d)"
+          body="$RUNNER_TEMP/reference-drift.md"
+
+          existing="$(gh issue list --state open --search 'Reference drift in:title' \
+            --json number,title --jq '.[] | select(.title | startswith("Reference drift")) | .number' | head -n1 || true)"
+
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --title "$title" --body-file "$body"
+            echo "Updated issue #$existing."
+          else
+            gh issue create --title "$title" --body-file "$body"
+            echo "Opened a reference drift issue."
+          fi

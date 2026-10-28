@@ -1,0 +1,56 @@
+OC Router
+Copyright (C) 2026 Tushar Agarwal (Tushar49)
+
+This project is free software under the GNU General Public License, version 3
+or (at your option) any later version. It is distributed without warranty.
+See LICENSE for the full terms.
+
+This project is a fork of opencode2api:
+  https://github.com/jasonxu114514/opencode2api
+  Copyright (C) Jason Xu
+  Upstream base: v1.4.5 / fe49a021694eb0a2468527d398d049b3bb6b17cf
+  License: GPL-3.0-or-later
+
+Third-party components and references incorporated into or used by this
+project:
+
+  proxy-rotation
+    https://github.com/Tushar49/proxy-rotation
+    Copyright (C) Tushar Agarwal (Tushar49)
+    License: MIT (owner-declared; the LICENSE is present in the owner's
+    worktree but not yet pushed; verify it before copying)
+    Use: fetch/judge/probe behavior, ported to Go; no Node runtime.
+
+  9Router
+    https://github.com/decolua/9router
+    License: MIT
+    Use: reference for RTK integration, proxy/UI patterns, and OpenCode
+    free-lane behavior.
+
+  RTK
+    https://github.com/rtk-ai/rtk
+    License: Apache-2.0
+    Use: compression filters and behavior, ported to Go.
+
+  OmniRoute
+    https://github.com/diegosouzapw/OmniRoute
+    License: MIT
+    Use: reference for proxy/UI patterns and OpenCode integration. Its
+    serverless relay approach is not used for the identity-bound free lane.
+
+  Headroom
+    https://github.com/headroomlabs-ai/headroom
+    License: Apache-2.0
+    Use: optional external compression service, pinned to 0.42.0.
+
+  OpenCode
+    https://github.com/anomalyco/opencode
+    License: MIT
+    Use: reference for provider configuration, metadata, and compaction
+    behavior.
+
+MIT and Apache-2.0 components are incorporated into a GPL-3.0-or-later work.
+Their original notices remain in effect for their respective portions.
+
+This project is not affiliated with OpenCode, Zen, Go, Cloudflare, 9Router,
+OmniRoute, RTK, or Headroom.
