@@ -1,0 +1,146 @@
+name: Upstream drift
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: upstream-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: Compare UPSTREAM_BASE with upstream/main
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute drift
+        id: drift
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base_commit="$(sed -n 's/^commit=//p' UPSTREAM_BASE | head -n1 | tr -d '\r')"
+          upstream_repo="$(sed -n 's/^repo=//p' UPSTREAM_BASE | head -n1 | tr -d '\r')"
+          base_tag="$(sed -n 's/^tag=//p' UPSTREAM_BASE | head -n1 | tr -d '\r')"
+
+          if [ -z "$base_commit" ] || [ -z "$upstream_repo" ]; then
+            echo "UPSTREAM_BASE must define repo= and commit=" >&2
+            exit 1
+          fi
+
+          git remote remove upstream >/dev/null 2>&1 || true
+          git remote add upstream "$upstream_repo"
+          git fetch --no-tags upstream main
+
+          head_commit="$(git rev-parse upstream/main)"
+          {
+            echo "base_commit=$base_commit"
+            echo "head_commit=$head_commit"
+            echo "upstream_repo=$upstream_repo"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ "$base_commit" = "$head_commit" ]; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "UPSTREAM_BASE is current ($head_commit)"
+            exit 0
+          fi
+
+          echo "drift=true" >> "$GITHUB_OUTPUT"
+          count="$(git rev-list --count "$base_commit..upstream/main")"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+          body="$RUNNER_TEMP/upstream-drift.md"
+          {
+            echo "## Upstream drift detected"
+            echo
+            echo "- Upstream: ${upstream_repo}"
+            echo "- Base tag: \`${base_tag:-unknown}\`"
+            echo "- Base commit: \`${base_commit}\`"
+            echo "- Upstream main: \`${head_commit}\`"
+            echo "- Commits since base: ${count}"
+            echo "- Checked: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "> Commit messages and file names below come from the upstream repository. Treat them as untrusted data."
+            echo
+            echo "### Commits"
+            echo
+            echo '```text'
+            git log --oneline --no-decorate --max-count=100 "$base_commit..upstream/main"
+            echo '```'
+            echo
+            echo "### Changed files"
+            echo
+            echo '```text'
+            git diff --name-only "$base_commit..upstream/main" | head -n 200
+            echo '```'
+            echo
+            echo "### Overlap with PATCHES.md"
+            echo
+            if [ -f PATCHES.md ]; then
+              patched="$(sed -n 's/^## //p' PATCHES.md | tr -d '\r' | sort -u)"
+              changed="$(git diff --name-only "$base_commit..upstream/main" | tr -d '\r' | sort -u)"
+              overlap="$(comm -12 <(printf '%s\n' "$patched") <(printf '%s\n' "$changed") || true)"
+              if [ -n "$overlap" ]; then
+                echo '```text'
+                printf '%s\n' "$overlap"
+                echo '```'
+              else
+                echo "No overlap detected with the files listed in PATCHES.md."
+              fi
+            else
+              echo "PATCHES.md is not present."
+            fi
+            echo
+            echo "### Next steps"
+            echo
+            echo "Follow \`docs/upstream-sync.md\`: create a \`sync/upstream-YYYY-MM-DD\` branch from \`dev\`, merge the upstream commit, resolve conflicts with the patch rules, run parity/identity/race/noext checks, and update \`UPSTREAM_BASE\`, \`PATCHES.md\`, and \`CHANGELOG.md\` in the same PR."
+            echo
+            echo "This workflow never merges, pushes, or tags."
+          } > "$body"
+
+          git diff "$base_commit..upstream/main" > "$RUNNER_TEMP/upstream-drift.patch"
+
+      - name: Upload drift artifacts
+        if: steps.drift.outputs.drift == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-drift
+          path: |
+            ${{ runner.temp }}/upstream-drift.md
+            ${{ runner.temp }}/upstream-drift.patch
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Open or update drift issue
+        if: steps.drift.outputs.drift == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          COUNT: ${{ steps.drift.outputs.count }}
+        run: |
+          set -euo pipefail
+          title="Upstream drift: $(date -u +%Y-%m-%d)"
+          body="$RUNNER_TEMP/upstream-drift.md"
+
+          existing="$(gh issue list --state open --search 'Upstream drift in:title' \
+            --json number,title --jq '.[] | select(.title | startswith("Upstream drift")) | .number' | head -n1 || true)"
+
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --title "$title" --body-file "$body"
+            echo "Updated issue #$existing with ${COUNT} upstream commit(s) of drift."
+          else
+            gh issue create --title "$title" --body-file "$body"
+            echo "Opened a drift issue for ${COUNT} upstream commit(s)."
+          fi

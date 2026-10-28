@@ -1,0 +1,6 @@
+repo=https://github.com/Tushar49/proxy-rotation
+branch=proxyrotation-dev
+commit=274678424b998a0c0836c22f471828447cd70beb
+date=2026-10-27
+license=MIT
+license_note=MIT LICENSE present in the owner's worktree on 2026-10-28; verify it is pushed before copying code or fixtures.

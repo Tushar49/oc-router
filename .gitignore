@@ -20,3 +20,13 @@ coverage.out
 # Local credentials, deployment backups, and verification artifacts
 .local/
 *.availability.json
+bin/
+dist/
+
+# Dev-only local material. These paths are stripped from main; ignoring them
+# keeps the promotion working tree clean without ever tracking them.
+_archive/
+.research/
+.githooks/
+.agents/
+.main.gitignore

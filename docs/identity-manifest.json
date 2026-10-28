@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "sha256",
+  "generated": "2026-10-28",
+  "upstream": {
+    "repo": "https://github.com/jasonxu114514/opencode2api",
+    "tag": "v1.4.5",
+    "commit": "fe49a021694eb0a2468527d398d049b3bb6b17cf",
+    "date": "2026-10-26"
+  },
+  "files": [
+    {
+      "path": "internal/gateway/opencode_prompt.go",
+      "sha256": "3db182dce888dc41e66882cc082778e4e9f9a61674513ac087719643ddcdb41e"
+    },
+    {
+      "path": "internal/gateway/opencode_prompt_v1.txt",
+      "sha256": "066a60e1f3fba947dc181e07129dddea18a9bf3f8602b3534289953dc6334eb3"
+    },
+    {
+      "path": "internal/gateway/opencode_prompt_v2.txt",
+      "sha256": "a02fe02a208c7ef4a4bbbb2768d926bc2b924aabfabe71a1b088c4b57f101768"
+    },
+    {
+      "path": "internal/gateway/opencode_tools.json",
+      "sha256": "b8bfeff92cc9b7e265af08f720c249815c964f482905767832d2f561507e0abd"
+    },
+    {
+      "path": "internal/gateway/opencode_tools_v1.json",
+      "sha256": "f5c727d8f6c9ea00a44cb1a38ffae0bc735a4cd15f1b2bbc072b0e4aed839a7e"
+    },
+    {
+      "path": "internal/gateway/toolshape.go",
+      "sha256": "4ffc3ed873a0071fc007e9fed3a60c0aa2abbafb0101d2eb066d58541896df0f"
+    },
+    {
+      "path": "internal/httpx/bun.go",
+      "sha256": "12c4d8dc807d2d6a3a33421fff31471d46500450e968ad2a1c90178600573498"
+    },
+    {
+      "path": "internal/httpx/bun_dial.go",
+      "sha256": "a7a836556290c8031b7e07ff15f81ffa62397b8f6b81c8d71a3630e8d053d8be"
+    },
+    {
+      "path": "internal/identity/message.go",
+      "sha256": "a64e22acc1081c6088cb5c0feba6be09f139e7ce6731c5db6c83b5192fcb2506"
+    },
+    {
+      "path": "internal/identity/request.go",
+      "sha256": "80cde81db278425c0f43900b33f7ff17eab85aaf1f55196d82b850c134cb882e"
+    },
+    {
+      "path": "internal/warp/bind.go",
+      "sha256": "0efd7e5726124af885020f293232b04962cfe87616e5fd962618c5bafdca8493"
+    },
+    {
+      "path": "internal/warp/doc.go",
+      "sha256": "a3e91ed62b33b643ec2eb06c977fd660ef844ba3efcaa935c76d310bb5999cf1"
+    },
+    {
+      "path": "internal/warp/exit.go",
+      "sha256": "0b3ffcb4b06e5e62b099e51ee92541ad8d60f35d242a242b2350732c0bc30c4a"
+    },
+    {
+      "path": "internal/warp/freebind_linux.go",
+      "sha256": "55ede50bdb0134727f303f0ace8aab191958d1bb0a2427b7641f78c7cf07fba0"
+    },
+    {
+      "path": "internal/warp/freebind_other.go",
+      "sha256": "30936cd2135334f31f78b3af18d9a688a568f9cc9655e6afbac1f5db77f51b3c"
+    },
+    {
+      "path": "internal/warp/pool.go",
+      "sha256": "d3397ecca223e88487e2ac68a04d6d68a089caed104e32f40d61067df70da230"
+    },
+    {
+      "path": "internal/warp/registrar.go",
+      "sha256": "0c6311b3727e1f83753c3a3d925ad658d5aa9487c32626c2fd61c8668237d6f4"
+    }
+  ]
+}
