@@ -31,6 +31,8 @@ baseline for the initial entry is `v1.4.5`.
 - Upgraded the local uv tool to `headroom-ai[proxy]==0.42.0` with owner
   approval; the pinned `/v1/compress` contract smoke is now recorded against
   `0.42.0`.
+- Updated the CI `govulncheck` pin to `v1.9.0`; `v1.1.4` panics in its SSA
+  builder under Go `1.27`.
 
 ### Notes
 
