@@ -1,0 +1,82 @@
+{
+  "name": "anthropic-nonstream",
+  "protocol": "anthropic",
+  "client": {
+    "path": "/v1/messages",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer test-key",
+      "x-opencode-session": "ses_000000000ffcAAAAAAAAAAAAAA",
+      "x-opencode-project": "0123456789abcdef0123456789abcdef01234567"
+    },
+    "body": {
+      "model": "test/paid-anthropic",
+      "max_tokens": 64,
+      "messages": [
+        {
+          "role": "user",
+          "content": "hello"
+        }
+      ],
+      "stream": false
+    }
+  },
+  "upstream": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "json": {
+      "id": "msg_fixture",
+      "type": "message",
+      "role": "assistant",
+      "model": "test/paid-anthropic",
+      "content": [
+        {
+          "type": "text",
+          "text": "hello"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "input_tokens": 3,
+        "output_tokens": 1
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "content_type": "application/json",
+    "json": {
+      "id": "msg_fixture",
+      "type": "message",
+      "role": "assistant",
+      "model": "test/paid-anthropic",
+      "content": [
+        {
+          "type": "text",
+          "text": "hello"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "input_tokens": 3,
+        "output_tokens": 1
+      }
+    }
+  },
+  "expect_upstream": {
+    "path": "/v1/messages?beta=true",
+    "json": {
+      "model": "test/paid-anthropic",
+      "max_tokens": 64,
+      "stream": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "hello"
+        }
+      ]
+    }
+  }
+}

@@ -6,9 +6,10 @@ the keyless free lane. It is a GPL-3.0-or-later fork of
 local usage analytics, proxy supply, model metadata overrides, and optional
 token savers.
 
-**Status: Phase 0 scaffold.** The gateway baseline is the pinned upstream
-release; the extensions described in the plan are not implemented yet. Do not
-treat this repository as a finished product.
+**Status: Phase 1 parity harness.** The gateway baseline is the pinned upstream
+release. Golden fixtures, a pinned-binary parity runner, identity checks, and
+gateway tests are in place; the product extensions described in the plan are
+not implemented yet. Do not treat this repository as a finished product.
 
 Not affiliated with OpenCode, Zen, Go, Cloudflare, 9Router, OmniRoute, RTK, or
 Headroom.
@@ -26,10 +27,11 @@ Headroom.
 go build -trimpath -o bin/oc-router ./cmd/opencode2api
 go vet ./...
 go test ./...
+node scripts/parity.mjs   # local binary vs the pinned upstream binary
 ```
 
-The upstream binary name and package path are retained during Phase 0 to keep
-upstream merges small. Release artifacts use the `oc-router` name.
+The upstream binary name and package path are retained to keep upstream merges
+small. Release artifacts use the `oc-router` name.
 
 ## Run
 
@@ -51,6 +53,8 @@ upstream docs before exposing anything.
 - `PROXY_UPSTREAM_BASE` — proxy-rotation pin and license note.
 - `docs/development.md` — local build, test, and platform notes.
 - `docs/parity.md` — semantic and identity parity policy.
+- `PARITY-MATRIX.md` — Phase 1 gateway evidence and remaining P0 rows.
+- `docs/main-protection.md` — live `main` and release-tag rulesets.
 - `docs/headroom-smoke.md` — observed `/v1/compress` contract and version gate.
 - `docs/openapi.yaml` — admin API seed.
 - `docs/upstream-sync.md` — sync/merge procedure.

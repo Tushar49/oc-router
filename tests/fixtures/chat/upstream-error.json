@@ -1,0 +1,58 @@
+{
+  "name": "chat-upstream-error",
+  "protocol": "chat",
+  "client": {
+    "path": "/v1/chat/completions",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer test-key",
+      "x-opencode-session": "ses_000000000ffcAAAAAAAAAAAAAA",
+      "x-opencode-project": "0123456789abcdef0123456789abcdef01234567"
+    },
+    "body": {
+      "model": "test/paid-error",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hello"
+        }
+      ],
+      "stream": false
+    }
+  },
+  "upstream": {
+    "status": 400,
+    "headers": {
+      "Content-Type": "application/json",
+      "Retry-After": "17"
+    },
+    "json": {
+      "error": {
+        "message": "context length exceeded: 200000 > 131072",
+        "type": "invalid_request_error"
+      }
+    }
+  },
+  "expect": {
+    "status": 400,
+    "content_type": "application/json",
+    "headers": {
+      "Retry-After": "17"
+    },
+    "json": {
+      "error": {
+        "message": "context length exceeded: 200000 > 131072",
+        "type": "upstream_error",
+        "param": null,
+        "code": null
+      }
+    }
+  },
+  "expect_upstream": {
+    "path": "/v1/chat/completions",
+    "json": {
+      "model": "test/paid-error",
+      "stream": false
+    }
+  }
+}

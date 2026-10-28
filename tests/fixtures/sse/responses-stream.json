@@ -1,0 +1,37 @@
+{
+  "name": "responses-sse",
+  "protocol": "responses",
+  "client": {
+    "path": "/v1/responses",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer test-key",
+      "x-opencode-session": "ses_000000000ffcAAAAAAAAAAAAAA",
+      "x-opencode-project": "0123456789abcdef0123456789abcdef01234567"
+    },
+    "body": {
+      "model": "test/paid-responses-sse",
+      "input": "hello",
+      "stream": true
+    }
+  },
+  "upstream": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "text/event-stream"
+    },
+    "sse": "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_fixture\",\"object\":\"response\",\"created_at\":1700000000,\"status\":\"in_progress\",\"model\":\"test/paid-responses-sse\",\"output\":[]}}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_fixture\",\"output_index\":0,\"content_index\":0,\"delta\":\"hello\"}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_fixture\",\"object\":\"response\",\"created_at\":1700000000,\"status\":\"completed\",\"model\":\"test/paid-responses-sse\",\"output\":[{\"type\":\"message\",\"id\":\"msg_fixture\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\",\"annotations\":[]}]}],\"usage\":{\"input_tokens\":3,\"output_tokens\":1,\"total_tokens\":4}}}\n\n"
+  },
+  "expect": {
+    "status": 200,
+    "content_type": "text/event-stream; charset=utf-8",
+    "sse": "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_fixture\",\"object\":\"response\",\"created_at\":1700000000,\"status\":\"in_progress\",\"model\":\"test/paid-responses-sse\",\"output\":[]}}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_fixture\",\"output_index\":0,\"content_index\":0,\"delta\":\"hello\"}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_fixture\",\"object\":\"response\",\"created_at\":1700000000,\"status\":\"completed\",\"model\":\"test/paid-responses-sse\",\"output\":[{\"type\":\"message\",\"id\":\"msg_fixture\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\",\"annotations\":[]}]}],\"usage\":{\"input_tokens\":3,\"output_tokens\":1,\"total_tokens\":4}}}\n\n"
+  },
+  "expect_upstream": {
+    "path": "/v1/responses",
+    "json": {
+      "model": "test/paid-responses-sse",
+      "stream": true
+    }
+  }
+}

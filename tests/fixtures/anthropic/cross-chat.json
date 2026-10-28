@@ -1,0 +1,94 @@
+{
+  "name": "anthropic-to-chat",
+  "protocol": "anthropic",
+  "client": {
+    "path": "/v1/messages",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer test-key",
+      "x-opencode-session": "ses_000000000ffcAAAAAAAAAAAAAA",
+      "x-opencode-project": "0123456789abcdef0123456789abcdef01234567"
+    },
+    "body": {
+      "model": "test/cross-chat",
+      "max_tokens": 64,
+      "system": "be brief",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hello"
+        }
+      ],
+      "stream": false
+    }
+  },
+  "upstream": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "json": {
+      "id": "chatcmpl_fixture",
+      "object": "chat.completion",
+      "created": 1700000000,
+      "model": "test/cross-chat",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "hello"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 3,
+        "completion_tokens": 1,
+        "total_tokens": 4
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "content_type": "application/json",
+    "json": {
+      "id": "msg_fixture",
+      "type": "message",
+      "role": "assistant",
+      "model": "test/cross-chat",
+      "content": [
+        {
+          "type": "text",
+          "text": "hello"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 3,
+        "output_tokens": 1,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0
+      }
+    }
+  },
+  "expect_upstream": {
+    "path": "/v1/chat/completions",
+    "json": {
+      "model": "test/cross-chat",
+      "max_tokens": 64,
+      "stream": false,
+      "messages": [
+        {
+          "role": "system",
+          "content": "be brief"
+        },
+        {
+          "role": "user",
+          "content": "hello"
+        }
+      ]
+    }
+  }
+}

@@ -11,7 +11,31 @@ baseline for the initial entry is `v1.4.5`.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Phase 1 golden fixture harness for Chat, Responses, Anthropic, SSE, forced
+  stream collapse, and upstream error passthrough, with a local mock upstream.
+- Pinned-binary parity runner (`scripts/parity.mjs` + `TestBinaries`) that
+  builds the `UPSTREAM_BASE` commit in a detached worktree and compares the
+  normalized client and upstream artifacts.
+- Tests for auth, model routing, error passthrough, first-event timeouts,
+  identity-manifest integrity, proxy parsing, `#pool` cycling, and the
+  `/healthz` starting/ready contract.
+- `PARITY-MATRIX.md` records the Phase 1 gateway evidence and the P0 rows that
+  remain deferred to later phases.
+- `main` and `v*` release tags are protected by repository rulesets; the exact
+  rules and bypass model are recorded in `docs/main-protection.md`.
+
+### Changed
+
+- Upgraded the local uv tool to `headroom-ai[proxy]==0.42.0` with owner
+  approval; the pinned `/v1/compress` contract smoke is now recorded against
+  `0.42.0`.
+
+### Notes
+
+- No runtime gateway behavior changed in this entry; the new code is test,
+  tooling, workflow, and documentation only.
 
 ## [0.1.0-dev] - 2026-10-28
 

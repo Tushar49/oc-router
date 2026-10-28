@@ -166,7 +166,7 @@ Once per release cycle:
 
 | Date | Upstream commit | Elapsed | Conflicts / notes |
 |---|---|---|---|
-| — | — | — | No drill run yet (Phase 0) |
+| 2026-10-28 | `upstream/main` `b13bf69` | 6.3 s | Throwaway worktree from `dev` `0836850`; one fork-owned `README.md` conflict, resolved with `--ours`; WARP/free-tier code auto-merged; `go test` and `noext` green on the baseline. No commit or push. The Phase 1 test/tooling files were uncommitted and therefore not part of the drill tree. |
 
 ## Reference bases (monthly)
 

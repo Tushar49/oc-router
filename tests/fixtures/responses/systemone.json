@@ -1,0 +1,66 @@
+{
+  "name": "systemone-passthrough",
+  "protocol": "systemone",
+  "client": {
+    "path": "/v1/systemone",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer test-key",
+      "x-opencode-session": "ses_000000000ffcAAAAAAAAAAAAAA",
+      "x-opencode-project": "0123456789abcdef0123456789abcdef01234567"
+    },
+    "body": {
+      "model": "test/systemone",
+      "state": {
+        "goal": "classify"
+      },
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Is the request safe?"
+        }
+      ]
+    }
+  },
+  "upstream": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "json": {
+      "answers": [
+        {
+          "id": "q1",
+          "answer": "yes"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": 200,
+    "content_type": "application/json",
+    "json": {
+      "answers": [
+        {
+          "id": "q1",
+          "answer": "yes"
+        }
+      ]
+    }
+  },
+  "expect_upstream": {
+    "path": "/v1/systemone",
+    "json": {
+      "model": "test/systemone",
+      "state": {
+        "goal": "classify"
+      },
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Is the request safe?"
+        }
+      ]
+    }
+  }
+}

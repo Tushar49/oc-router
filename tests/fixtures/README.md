@@ -1,15 +1,17 @@
 # Test fixtures
 
-Sanitized, deterministic inputs for the parity and protocol tests. This tree is
-a skeleton: only `.gitkeep` placeholders are committed until the Phase 1
-fixture harness lands.
+Sanitized, deterministic inputs for the parity and protocol tests.
 
 ```
-chat/       Chat Completions JSON and streaming fixtures
-responses/  Responses API JSON and streaming fixtures
-anthropic/  Anthropic Messages JSON and streaming fixtures
-sse/        Cross-protocol SSE sequences and terminal/error cases
+chat/       Chat Completions JSON, error envelopes, and free-lane cases
+responses/  Responses API JSON fixtures
+anthropic/  Anthropic Messages JSON fixtures
+sse/        SSE sequences and forced-stream collapse cases
 ```
+
+Each `.json` file is one `internal/parity.Fixture`: the client request, the mock
+upstream reply, the expected local reply, and a subset assertion over the
+request the gateway sends upstream. See `docs/parity.md` for the schema.
 
 Fixtures are committed artifacts, not live captures. They must be reviewable
 without a network connection and without any real account.

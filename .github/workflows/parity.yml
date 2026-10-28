@@ -11,10 +11,13 @@ on:
       - "internal/gateway/opencode_tools*.json"
       - "internal/gateway/toolshape.go"
       - "internal/warp/**"
+      - "internal/parity/**"
+      - "tests/fixtures/**"
       - "internal/**/embed/**"
       - "internal/**/assets/**"
       - "webui/**"
       - "scripts/identity-hash.mjs"
+      - "scripts/parity.mjs"
       - "docs/identity-manifest.json"
       - ".github/workflows/parity.yml"
   push:
@@ -27,10 +30,13 @@ on:
       - "internal/gateway/opencode_tools*.json"
       - "internal/gateway/toolshape.go"
       - "internal/warp/**"
+      - "internal/parity/**"
+      - "tests/fixtures/**"
       - "internal/**/embed/**"
       - "internal/**/assets/**"
       - "webui/**"
       - "scripts/identity-hash.mjs"
+      - "scripts/parity.mjs"
       - "docs/identity-manifest.json"
       - ".github/workflows/parity.yml"
   workflow_dispatch:
@@ -75,10 +81,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -d testdata/parity ] || [ -d internal/parity/testdata ]; then
+          if [ -d tests/fixtures ] && find tests/fixtures -name '*.json' -print -quit | grep -q .; then
             go test ./... -run 'Parity|Fixture' -count=1
           else
-            echo "No parity fixture directory yet; running the full test suite as the skeleton gate."
+            echo "No parity fixtures found; running the full test suite."
             go test ./... -count=1
           fi
 
@@ -96,6 +102,30 @@ jobs:
             internal/parity/testdata/out/
           if-no-files-found: ignore
           retention-days: 7
+
+  pinned-binary:
+    name: Pinned upstream binary comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Compare local and pinned upstream binaries
+        run: node scripts/parity.mjs
 
   identity:
     name: Identity hash manifest

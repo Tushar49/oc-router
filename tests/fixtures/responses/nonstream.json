@@ -1,0 +1,90 @@
+{
+  "name": "responses-nonstream",
+  "protocol": "responses",
+  "client": {
+    "path": "/v1/responses",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer test-key",
+      "x-opencode-session": "ses_000000000ffcAAAAAAAAAAAAAA",
+      "x-opencode-project": "0123456789abcdef0123456789abcdef01234567"
+    },
+    "body": {
+      "model": "test/paid-responses",
+      "input": "hello",
+      "stream": false
+    }
+  },
+  "upstream": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "json": {
+      "id": "resp_fixture",
+      "object": "response",
+      "created_at": 1700000000,
+      "status": "completed",
+      "model": "test/paid-responses",
+      "output": [
+        {
+          "type": "message",
+          "id": "msg_fixture",
+          "status": "completed",
+          "role": "assistant",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "hello",
+              "annotations": []
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "input_tokens": 3,
+        "output_tokens": 1,
+        "total_tokens": 4
+      }
+    }
+  },
+  "expect": {
+    "status": 200,
+    "content_type": "application/json",
+    "json": {
+      "id": "resp_fixture",
+      "object": "response",
+      "created_at": 1700000000,
+      "status": "completed",
+      "model": "test/paid-responses",
+      "output": [
+        {
+          "type": "message",
+          "id": "msg_fixture",
+          "status": "completed",
+          "role": "assistant",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "hello",
+              "annotations": []
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "input_tokens": 3,
+        "output_tokens": 1,
+        "total_tokens": 4
+      }
+    }
+  },
+  "expect_upstream": {
+    "path": "/v1/responses",
+    "json": {
+      "model": "test/paid-responses",
+      "input": "hello",
+      "stream": false
+    }
+  }
+}

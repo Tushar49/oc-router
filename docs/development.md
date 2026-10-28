@@ -1,9 +1,10 @@
 # Development
 
 The repository is a GPL-3.0-or-later fork of `opencode2api`, at upstream
-baseline `v1.4.5` during Phase 0. Phase 0 is a scaffold: the commands below
-build and test the upstream code. The identity hash manifest is present; the
-fixture/parity runner is planned and not yet present.
+baseline `v1.4.5`. Phase 0 added the repository guardrails; Phase 1 adds the
+golden fixture harness, the pinned-binary parity runner, and unit coverage for
+auth, routing, errors, first-event, proxy parsing, `#pool`, identity hashes, and
+`/healthz`.
 
 ## Requirements
 
@@ -96,12 +97,11 @@ sh -n docker-entrypoint.sh
 
 ## Fixtures and parity
 
-The identity hash manifest is implemented. The Phase 1 fixture/parity harness
-is not. When it lands it will provide:
+The Phase 1 harness provides:
 
 - golden fixtures for Chat, Responses, and Anthropic requests, non-stream
-  responses, SSE sequences, error envelopes, and identity shaping;
-- a mock upstream so tests make no real network calls;
+  responses, SSE sequences, error envelopes, and free-lane shaping;
+- a local mock upstream, so unit tests make no real network calls;
 - a parity runner that builds the pinned upstream binary and diffs normalized
   request/response artifacts.
 
@@ -111,15 +111,21 @@ The identity manifest is checked with:
 node scripts/identity-hash.mjs --check
 ```
 
-The intended parity entry points, to be confirmed when the packages exist:
+Entry points:
 
 ```sh
-go test ./internal/parity/...              # fixtures + parity
-go test -tags noext ./internal/parity/...  # extensions-off parity
+go test ./...                 # golden fixtures + unit parity tests
+go test -tags noext ./...     # extensions-off parity
+node scripts/parity.mjs       # local binary vs pinned upstream binary
 ```
 
-Do not claim these commands work until the harness is merged. A changed
-identity hash will require an `identity-update` review and updated goldens.
+`TestBinaries` skips itself unless `PARITY_OUR_BIN` and `PARITY_UPSTREAM_BIN`
+are set; `scripts/parity.mjs` builds both and sets them. The script uses a
+detached git worktree at the `UPSTREAM_BASE` commit, so the upstream side is
+never `main`.
+
+A changed identity hash requires an `identity-update` review and updated
+goldens.
 
 ## Upstream sync
 

@@ -6,6 +6,9 @@ written v1 P0 contract, except where a documented extension intentionally
 changes behavior. It is not a claim that every upstream file is copied
 unchanged.
 
+The Phase 1 gateway/protocol slice and its evidence are tracked in
+`PARITY-MATRIX.md`; the full product matrix grows as later phases land.
+
 The fork has two different parity obligations:
 
 1. **Semantic parity** — the same request produces the same method/path/query,
@@ -47,11 +50,19 @@ credentials. Upstream's own static prompt/tool assets may be referenced from
 `internal/gateway/` under GPL attribution; do not copy unrelated upstream test
 data.
 
-## Running the skeleton
+## Running the harness
 
-The fixture directories and the identity manifest exist now. The parity runner
-(mock upstream, upstream binary comparison, normalized diff) is a Phase 1
-deliverable and is intentionally not stubbed here.
+The Phase 1 harness has three layers:
+
+1. `go test ./...` runs the golden fixture tests, auth/routing/error tests,
+   first-event tests, proxy parsing and `#pool` tests, and the identity manifest
+   check. The mock upstream is local and no network is used.
+2. `go test -tags noext ./...` is the parity build: extensions register nothing
+   and the binary must match upstream behavior.
+3. `node scripts/parity.mjs` builds the local binary and the pinned upstream
+   binary from `UPSTREAM_BASE`, then runs the same fixtures through both with a
+   local mock upstream. It compares status, content type, JSON/SSE bodies, and
+   the identity headers/body sent upstream.
 
 ```sh
 # Verify the identity manifest against the working tree.
@@ -60,15 +71,56 @@ node scripts/identity-hash.mjs --check
 # Regenerate it only for an approved identity change (see below).
 node scripts/identity-hash.mjs
 
-# Existing gates that parity work must keep green.
+# Golden fixtures and unit-level parity checks.
 go test ./...
+
+# Extensions-off parity build.
 go test -tags noext ./...
-go vet ./...
+
+# Local binary vs the pinned upstream binary.
+node scripts/parity.mjs
 ```
 
-`go test -tags noext ./...` is the parity build: extensions register nothing and
-the binary must match upstream behavior. A parity run in CI will use the pinned
-upstream commit, not `main`, and must not require network access.
+`internal/parity.TestBinaries` is skipped during a normal `go test` run. The
+script sets `PARITY_OUR_BIN`, `PARITY_UPSTREAM_BIN`, and `PARITY_FIXTURES` to
+enable it. The pinned binary is built from a detached git worktree at the
+`UPSTREAM_BASE` commit, so the comparison uses upstream, never `main`.
+
+## Fixture format
+
+Fixtures live under `tests/fixtures/{chat,responses,anthropic,sse}`. Each JSON
+file describes one transcript:
+
+```json
+{
+  "name": "chat-nonstream",
+  "protocol": "chat",
+  "client": {
+    "path": "/v1/chat/completions",
+    "headers": {"Authorization": "Bearer test-key"},
+    "body": {"model": "test/paid-chat", "messages": []}
+  },
+  "upstream": {
+    "status": 200,
+    "headers": {"Content-Type": "application/json"},
+    "json": {}
+  },
+  "expect": {
+    "status": 200,
+    "content_type": "application/json",
+    "json": {}
+  },
+  "expect_upstream": {
+    "path": "/v1/chat/completions",
+    "json": {"model": "test/paid-chat", "stream": false}
+  }
+}
+```
+
+`expect_upstream.json` is a subset assertion: expected keys and array elements
+must match, while additional upstream fields are allowed. This keeps the
+identity prompt/tool manifest in one place instead of duplicating it in every
+fixture. The binary parity run compares the full normalized upstream body.
 
 ## Identity hash policy
 
