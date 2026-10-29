@@ -19,6 +19,7 @@ import (
 	"opencode2api/internal/gateway"
 	"opencode2api/internal/httpx"
 	"opencode2api/internal/telemetry"
+	"opencode2api/internal/usage"
 	"opencode2api/webui"
 )
 
@@ -37,6 +38,7 @@ type Server struct {
 	lastInference *DebugInferenceResult
 	quotaMu       sync.Mutex
 	quotaCache    map[string]quotaCacheEntry
+	usage         *usage.Service // oc-router: Phase 2 usage service.
 }
 
 // New returns a Server for manager, reporting to monitor and logs.
@@ -46,6 +48,10 @@ func New(manager *gateway.RuntimeController, monitor *telemetry.Metrics, logs *t
 		attempts: make(map[string]loginWindow), debugAttempts: make(map[string]loginWindow),
 	}
 }
+
+// oc-router: SetUsage attaches the optional usage service. It must be called
+// before the WebUI listener starts.
+func (a *Server) SetUsage(service *usage.Service) { a.usage = service }
 
 // Handler returns the management routes: the API under /api/ and the embedded
 // WebUI for anything else. Every API route except login requires a session,
@@ -63,6 +69,12 @@ func (a *Server) Handler() http.Handler {
 	mux.Handle("POST /api/config/reveal", a.authenticate(a.csrf(http.HandlerFunc(a.handleReveal))))
 	mux.Handle("PUT /api/account", a.authenticate(a.csrf(http.HandlerFunc(a.handleAccount))))
 	mux.Handle("GET /api/monitor", a.authenticate(http.HandlerFunc(a.handleMonitor)))
+	// oc-router: Phase 2 usage routes.
+	mux.Handle("GET /api/usage/summary", a.authenticate(http.HandlerFunc(a.handleUsageSummary)))
+	mux.Handle("GET /api/usage/events", a.authenticate(http.HandlerFunc(a.handleUsageEvents)))
+	mux.Handle("GET /api/usage/timeseries", a.authenticate(http.HandlerFunc(a.handleUsageTimeseries)))
+	mux.Handle("GET /api/usage/export", a.authenticate(http.HandlerFunc(a.handleUsageExport)))
+	mux.Handle("POST /api/usage/backup", a.authenticate(a.csrf(http.HandlerFunc(a.handleUsageBackup))))
 	mux.Handle("GET /api/debug/models", a.authenticate(http.HandlerFunc(a.handleDebugModels)))
 	mux.Handle("GET /api/models/availability", a.authenticate(http.HandlerFunc(a.handleAvailability)))
 	mux.Handle("POST /api/models/restore", a.authenticate(a.csrf(http.HandlerFunc(a.handleRestoreModel))))
@@ -248,7 +260,7 @@ func (a *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		ServerKeyMetadata: current.ServerKeyMetadata,
 		Rotation:          current.Rotation,
 		Listen:            update.Listen, ServerKeys: serverKeys, ZenKeys: zenKeys, GoKeys: goKeys, Anonymous: update.Anonymous, Warp: update.Warp, Proxies: proxies, ProxyFile: update.ProxyFile,
-		Upstream: update.Upstream, Retry: update.Retry, Models: update.Models, Performance: update.Performance, Logging: update.Logging, Prefer: update.Prefer,
+		Upstream: update.Upstream, Retry: update.Retry, Models: update.Models, Performance: update.Performance, Logging: update.Logging, Usage: current.Usage, Prefer: update.Prefer, // oc-router: preserve usage settings.
 		Reasoning: reasoning,
 		WebUI:     config.WebUIConfig{Enabled: update.WebUI.Enabled, Listen: update.WebUI.Listen, Username: current.WebUI.Username, PasswordHash: current.WebUI.PasswordHash, SessionTTLMinutes: update.WebUI.SessionTTLMinutes},
 	}

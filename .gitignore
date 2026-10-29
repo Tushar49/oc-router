@@ -17,6 +17,12 @@ coverage.out
 *.rotation.json
 .rotation-*.tmp
 
+# Local usage database and backups (never commit operational data)
+*.db
+*.db-wal
+*.db-shm
+backup-*.db
+
 # Local credentials, deployment backups, and verification artifacts
 .local/
 *.availability.json

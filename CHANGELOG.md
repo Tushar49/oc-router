@@ -13,6 +13,14 @@ baseline for the initial entry is `v1.4.5`.
 
 ### Added
 
+- Phase 2 local usage database: embedded SQLite migrations, async batched
+  recording, canonical token normalization, integer micro-USD cost estimates,
+  UTC daily rollups, retention, CSV/JSON export, and on-demand backups.
+- Admin usage routes (`/api/usage/summary`, `/events`, `/timeseries`, `/export`,
+  `/backup`) and a Usage history page with summary cards, a daily chart,
+  grouped totals, and recent metadata-only events.
+- `docs/usage.md` documents the schema, capture points, privacy boundary,
+  pricing source, retention, and known limitations.
 - Phase 1 golden fixture harness for Chat, Responses, Anthropic, SSE, forced
   stream collapse, and upstream error passthrough, with a local mock upstream.
 - Pinned-binary parity runner (`scripts/parity.mjs` + `TestBinaries`) that
@@ -33,11 +41,15 @@ baseline for the initial entry is `v1.4.5`.
   `0.42.0`.
 - Updated the CI `govulncheck` pin to `v1.9.0`; `v1.1.4` panics in its SSA
   builder under Go `1.27`.
+- Added the pure-Go `modernc.org/sqlite` driver; `x/sys` moved to `v0.49.0`
+  as a transitive requirement.
 
 ### Notes
 
-- No runtime gateway behavior changed in this entry; the new code is test,
-  tooling, workflow, and documentation only.
+- Inference routing, identity bytes, and the free-lane path are unchanged.
+  Usage recording is metadata-only and never blocks the response.
+- The usage database is local and unencrypted; prompts, responses, tool
+  results, raw keys, raw session IDs, and IP addresses are not stored.
 
 ## [0.1.0-dev] - 2026-10-28
 

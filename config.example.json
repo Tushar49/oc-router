@@ -43,6 +43,14 @@
     "ring_size": 2000,
     "dump_request_bodies": false
   },
+  "usage": {
+    "enabled": true,
+    "database": "usage.db",
+    "retention_days": 365,
+    "batch_size": 100,
+    "flush_interval_ms": 100,
+    "query_timeout_ms": 5000
+  },
   "webui": {
     "enabled": true,
     "listen": "0.0.0.0:8081",

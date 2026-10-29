@@ -16,6 +16,7 @@ import (
 	"opencode2api/internal/config"
 	"opencode2api/internal/gateway"
 	"opencode2api/internal/telemetry"
+	"opencode2api/internal/usage"
 )
 
 // version remains the linker injection point used by release builds.
@@ -58,6 +59,27 @@ func main() {
 	}
 	defer manager.Shutdown()
 
+	// oc-router: the usage database is optional and local-only. It records
+	// metadata after each inference request; no prompts or bodies are stored.
+	var usageService *usage.Service
+	if cfg.Usage.Enabled {
+		usageService, err = usage.New(usage.Options{
+			Config: cfg.Usage, ConfigPath: *configPath, Logger: logger, Pricer: manager, Root: ctx, WarpEnabled: cfg.Warp.Enabled,
+		})
+		if err != nil {
+			logger.Error("failed to initialize usage database", "component", "usage", "event", "usage_initialization_failed", "error", err)
+			os.Exit(1)
+		}
+		manager.SetUsage(usageService)
+		defer func() {
+			closeCtx, closeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer closeCancel()
+			if err := usageService.Close(closeCtx); err != nil {
+				logger.Warn("usage database close failed", "component", "usage", "event", "usage_close_failed", "error", err)
+			}
+		}()
+	}
+
 	apiServer := &http.Server{
 		Addr: cfg.Listen, Handler: manager.Handler(), ReadHeaderTimeout: 15 * time.Second, IdleTimeout: 120 * time.Second,
 	}
@@ -66,6 +88,7 @@ func main() {
 
 	if cfg.WebUI.Enabled {
 		admin := adminui.New(manager, monitor, hub, logger)
+		admin.SetUsage(usageService) // oc-router: enable the usage API/page.
 		webServer := &http.Server{
 			Addr: cfg.WebUI.Listen, Handler: admin.Handler(), ReadHeaderTimeout: 15 * time.Second, IdleTimeout: 120 * time.Second,
 		}

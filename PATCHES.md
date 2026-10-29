@@ -6,11 +6,12 @@ quickly and so the fork stays mergeable.
 
 ## Status
 
-**No upstream Go/identity code patches yet.** Phase 0 is a documentation,
-CI, and guardrails scaffold. It does not edit upstream Go, identity, prompt,
-tool, WARP, or WebUI code.
+Phase 2 adds small upstream Go/WebUI patches for the local usage service. No
+identity, prompt, tool, TLS, WARP, or free-lane shaping file is patched. The
+patches below are intentionally thin seams; behavior lives in the new
+`internal/store`, `internal/usage`, and `internal/admin/usage.go` files.
 
-It does replace or remove several fork-owned product paths that upstream also
+It also replaces or removes several fork-owned product paths that upstream
 owns. Those replacements are listed below so an upstream sync can decide
 whether to keep ours, re-apply a small patch, or retire the replacement.
 
@@ -83,12 +84,66 @@ whether to keep ours, re-apply a small patch, or retire the replacement.
 ### go.mod / go.sum
 
 - Updated `golang.org/x/net` to `v0.60.0`, `x/crypto` to `v0.57.0`, and
-  `x/sys` to `v0.48.0`; the module directive is now `go 1.26.0`.
+  `x/sys` to `v0.49.0`; the module directive is now `go 1.26.0`.
   Reason: `x/net v0.42.0` has GO-2026-6617 and the Go 1.24 standard library has
-  advisories; the owner approved this dependency update.
+  advisories; the owner approved the security update. `x/sys` v0.49.0 is the
+  transitive requirement of `modernc.org/sqlite`.
   Conflict risk: medium; re-apply security updates on sync.
   Upstream alternative: take the upstream dependency bump when available.
+- Added `modernc.org/sqlite v1.61.0` (pure Go, BSD-3-Clause; SQLite itself is
+  public domain) for the Phase 2 usage store. This is the only build-tag-free
+  option that works with `CGO_ENABLED=0` release builds.
+  Conflict risk: low; keep the version current.
+  Upstream alternative: none; upstream has no SQLite dependency.
 
 ## Upstream code patches
 
-None. No `// oc-router:` markers exist yet.
+### `internal/config/config.go`
+
+- Added the `Usage UsageConfig` field, the default in `Load`, and the
+  `cfg.Usage.Normalize()` call. The type and validation live in the new
+  fork-owned `internal/config/usage.go`.
+  Reason: expose the Phase 2 usage database settings without growing the
+  upstream file beyond the 30-line seam.
+  Conflict risk: low; re-apply the field, default and validation call if
+  upstream reworks defaults.
+
+### `internal/gateway/runtime.go`
+
+- Added the `usage` field and `SetUsage`, wrapped `dynamic` inside
+  `telemetry.Middleware` with the usage middleware, and added `Price` for the
+  metadata registry. Each added block is marked `// oc-router:`.
+  Reason: capture `RequestMeta` after the gateway finishes without touching
+  identity or routing code.
+  Conflict risk: medium; keep the wrapper inside telemetry and the field
+  initialized before the listener starts.
+
+### `cmd/opencode2api/main.go`
+
+- Creates the usage service after `RuntimeManager`, attaches it with
+  `manager.SetUsage`, flushes it on shutdown, and passes it to the admin server.
+  Reason: own the database lifecycle in the process entry point.
+  Conflict risk: low; keep the service close before `manager.Shutdown`.
+
+### `internal/admin/server.go`
+
+- Added the `usage` field, `SetUsage`, five routes, and `Usage: current.Usage`
+  when a config update is assembled.
+  Reason: preserve the usage settings on unrelated config saves and expose the
+  read-only usage API.
+  Conflict risk: low; keep the `current.Usage` copy if upstream changes
+  `handlePutConfig`.
+
+### `webui/js/main.js`
+
+- Imports the new `usage-history` page and adds it to `PAGES`. The page module
+  inserts its own nav item and section, so `index.html` is unchanged.
+  Reason: mount the Phase 2 history view with a two-line upstream edit.
+  Conflict risk: low; keep the page in `PAGES` and the dynamic nav insertion
+  before main.js binds the nav click handlers.
+
+### `webui/js/i18n.js`
+
+- Added English labels for `nav.usage-history` and `page.usage-history`.
+  Reason: the page header and nav item use the existing translation mechanism.
+  Conflict risk: low; other locales fall back to the authored Chinese copy.

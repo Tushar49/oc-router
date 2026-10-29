@@ -6,10 +6,13 @@ the keyless free lane. It is a GPL-3.0-or-later fork of
 local usage analytics, proxy supply, model metadata overrides, and optional
 token savers.
 
-**Status: Phase 1 parity harness.** The gateway baseline is the pinned upstream
-release. Golden fixtures, a pinned-binary parity runner, identity checks, and
-gateway tests are in place; the product extensions described in the plan are
-not implemented yet. Do not treat this repository as a finished product.
+**Status: Phase 2 local usage analytics.** The gateway baseline is the pinned
+upstream release. Golden fixtures, a pinned-binary parity runner, identity
+checks, and gateway tests are in place. A local SQLite usage store now records
+metadata-only token/cost history, serves admin summaries and exports, and backs
+up on demand. Proxy supply, model metadata overrides, token savers, and egress
+diversity are still planned. Do not treat this repository as a finished
+product.
 
 Not affiliated with OpenCode, Zen, Go, Cloudflare, 9Router, OmniRoute, RTK, or
 Headroom.
@@ -53,6 +56,7 @@ upstream docs before exposing anything.
 - `PROXY_UPSTREAM_BASE` — proxy-rotation pin and license note.
 - `docs/development.md` — local build, test, and platform notes.
 - `docs/parity.md` — semantic and identity parity policy.
+- `docs/usage.md` — local usage database, pricing, retention, and privacy.
 - `PARITY-MATRIX.md` — Phase 1 gateway evidence and remaining P0 rows.
 - `docs/main-protection.md` — live `main` and release-tag rulesets.
 - `docs/headroom-smoke.md` — observed `/v1/compress` contract and version gate.

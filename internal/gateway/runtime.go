@@ -16,6 +16,7 @@ import (
 	"opencode2api/internal/protocol"
 	"opencode2api/internal/rotation"
 	"opencode2api/internal/telemetry"
+	"opencode2api/internal/usage"
 	"opencode2api/internal/warp"
 )
 
@@ -63,6 +64,7 @@ type RuntimeController struct {
 	updateMu           sync.Mutex
 	effective          EffectiveListeners
 	metadata           *modelcatalog.PricingRegistry
+	usage              *usage.Service // oc-router: optional Phase 2 recorder.
 	availabilityCancel context.CancelFunc
 	// warpPool is the pool shared by successive runtimes when the WARP size
 	// and stack are unchanged. warpKey is the identity used for that reuse.
@@ -282,7 +284,27 @@ func (m *RuntimeController) Handler() http.Handler {
 		}
 		runtime.handler.ServeHTTP(w, r)
 	})
-	return telemetry.Middleware(m.monitor, m.logger, dynamic)
+	// oc-router: usage sits inside telemetry so RequestMeta is available after
+	// the handler returns; a nil service keeps the upstream path unchanged.
+	var next http.Handler = dynamic
+	if m.usage != nil {
+		next = m.usage.Middleware(next)
+	}
+	return telemetry.Middleware(m.monitor, m.logger, next)
+}
+
+// oc-router: SetUsage attaches the local usage recorder before the listener
+// starts. It must not be called concurrently with requests.
+func (m *RuntimeController) SetUsage(service *usage.Service) {
+	m.usage = service
+}
+
+// oc-router: Price resolves the current model price for usage cost estimates.
+func (m *RuntimeController) Price(model string) (modelcatalog.Price, bool) {
+	if m.metadata == nil {
+		return modelcatalog.Price{}, false
+	}
+	return m.metadata.Price(model)
 }
 
 // Redact removes configured credentials from diagnostic output.

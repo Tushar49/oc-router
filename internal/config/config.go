@@ -41,6 +41,7 @@ type Config struct {
 	Models            ModelsConfig                 `json:"models"`
 	Performance       PerformanceConfig            `json:"performance"`
 	Logging           LoggingConfig                `json:"logging"`
+	Usage             UsageConfig                  `json:"usage"` // oc-router: Phase 2 usage settings.
 	WebUI             WebUIConfig                  `json:"webui"`
 	Prefer            Tier                         `json:"prefer"`
 	Reasoning         ReasoningConfig              `json:"reasoning"`
@@ -297,6 +298,7 @@ func Load(path string) (Config, error) {
 		Models:      ModelsConfig{RefreshSeconds: 300, Protocols: map[string]string{}},
 		Performance: PerformanceConfig{MaxIdleConns: 2048, MaxIdleConnsPerHost: 256, MaxConnsPerHost: 0, IdleConnTimeoutSeconds: 120, ConnectTimeoutSeconds: 5, FailureCooldownSeconds: 15},
 		Logging:     LoggingConfig{Level: "info", RingSize: 2000},
+		Usage:       DefaultUsageConfig(), // oc-router: usage defaults.
 		WebUI:       WebUIConfig{Listen: "0.0.0.0:8081", SessionTTLMinutes: 720},
 		Prefer:      TierGo,
 	}
@@ -320,6 +322,10 @@ func Normalize(path string, cfg Config) (Config, error) {
 		return Config{}, err
 	}
 	if err := cfg.Warp.Normalize(); err != nil {
+		return Config{}, err
+	}
+	// oc-router: validate the Phase 2 usage database settings.
+	if err := cfg.Usage.Normalize(); err != nil {
 		return Config{}, err
 	}
 	trimList(&cfg.ServerKeys)
